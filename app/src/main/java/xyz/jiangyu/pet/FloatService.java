@@ -22,6 +22,9 @@ import android.view.WindowManager;
 import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.Random;
+import android.app.usage.UsageStatsManager;
+import android.app.usage.UsageStats;
+import java.util.List;
 
 public class FloatService extends Service {
     private WindowManager windowManager;
@@ -39,6 +42,22 @@ public class FloatService extends Service {
     private int animMaxCols = 2;
     private boolean animLoop = true, animActive = false;
     private Handler handler = new Handler();
+    // App感知
+    private String lastApp = "";
+    private Thread appWatcher;
+    private volatile boolean watching = false;
+    private static final java.util.Map<String, String> APP_NAMES = new java.util.HashMap<String, String>() {{
+        put("com.ai.assistance.operit", "在跟我聊天呢");
+        put("com.xingin.xhs", "在小红书冲浪");
+        put("tv.danmaku.bili", "在看B站");
+        put("com.ss.android.ugc.aweme", "在刷抖音");
+        put("com.tencent.mm", "在微信聊天");
+        put("com.tencent.mobileqq", "在QQ");
+        put("com.taobao.taobao", "在逛淘宝");
+        put("com.android.settings", "在设置里呢");
+        put("com.dragon.read", "在看番茄小说");
+        put("com.quark.browser", "在夸克浏览器");
+    }};
     private Runnable closeCheck;
     
     // 情绪系统
@@ -127,6 +146,8 @@ public class FloatService extends Service {
                     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
                         hasMoved = true;
                         if (closeCheck != null) handler.removeCallbacks(closeCheck);
+        watching = false;
+        try { if (appWatcher != null) appWatcher.join(500); } catch (Exception e) {}
                     }
                     layoutParams.x = (int)(initX + dx);
                     layoutParams.y = (int)(initY + dy);
@@ -134,6 +155,8 @@ public class FloatService extends Service {
                     return true;
                 case MotionEvent.ACTION_UP:
                     if (closeCheck != null) handler.removeCallbacks(closeCheck);
+        watching = false;
+        try { if (appWatcher != null) appWatcher.join(500); } catch (Exception e) {}
                     long dt = System.currentTimeMillis() - touchStart;
                     if (hasMoved) return true;
                     heatUp(10);
@@ -168,9 +191,49 @@ public class FloatService extends Service {
         windowManager.addView(surfaceView, layoutParams);
         
         startHeatLoop();
+        startAppWatcher();
         startMurmurLoop();
     }
     
+
+    private void startAppWatcher() {
+        watching = true;
+        appWatcher = new Thread(() -> {
+            while (watching && running) {
+                try {
+                    String pkg = getForegroundApp();
+                    if (pkg != null && !pkg.equals(lastApp) && !pkg.equals(getPackageName())) {
+                        lastApp = pkg;
+                        onAppChanged(pkg);
+                    }
+                } catch (Exception e) {}
+                try { Thread.sleep(3000); } catch (Exception e) {}
+            }
+        });
+        appWatcher.start();
+    }
+    
+    private String getForegroundApp() {
+        UsageStatsManager usm = (UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
+        long now = System.currentTimeMillis();
+        List<UsageStats> stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 10000, now);
+        if (stats == null || stats.isEmpty()) return null;
+        UsageStats recent = null;
+        for (UsageStats s : stats) {
+            if (recent == null || s.getLastTimeUsed() > recent.getLastTimeUsed()) {
+                recent = s;
+            }
+        }
+        return recent != null ? recent.getPackageName() : null;
+    }
+    
+    private void onAppChanged(String pkg) {
+        String name = APP_NAMES.get(pkg);
+        if (name == null) name = "换了个App";
+        String msg = "哦？" + name + "~";
+        showToast(msg);
+        updateNotification(msg);
+    }
     // 情绪冷却循环：每60秒-2
     private void startHeatLoop() {
         handler.postDelayed(new Runnable() {
@@ -357,6 +420,8 @@ public class FloatService extends Service {
         for (Bitmap b : frames) { if (b != null && !b.isRecycled()) b.recycle(); }
         frames.clear();
         if (closeCheck != null) handler.removeCallbacks(closeCheck);
+        watching = false;
+        try { if (appWatcher != null) appWatcher.join(500); } catch (Exception e) {}
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
