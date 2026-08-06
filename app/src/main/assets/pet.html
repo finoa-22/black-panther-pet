@@ -1,54 +1,8 @@
 <!DOCTYPE html>
 <html><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:transparent;width:100%;height:100%;overflow:hidden}
-.pet{width:100%;height:100%;background:url('spritesheet.png');background-size:800% 900%;image-rendering:pixelated;background-repeat:no-repeat}
-.bubble{position:absolute;top:5%;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.85);color:#fff;font-size:12px;padding:3px 8px;border-radius:10px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity 0.2s;font-family:sans-serif}
-.bubble.show{opacity:1}
-</style>
-</head><body>
-<div class="pet" id="pet"></div>
-<div class="bubble" id="bubble"></div>
-<script>
-const pet=document.getElementById('pet');
-const bubble=document.getElementById('bubble');
-const FRAMES_PER_ROW=8;
-let currentRow=0,currentFrame=0,animTimer=null;
-let idlePhase=true;
-
-function setFrame(row,col){
-  pet.style.backgroundPosition=(-col*100/7).toFixed(2)+'% '+(-row*100/8).toFixed(2)+'%';
-}
-function playRow(row,speed,loop,onDone){
-  clearInterval(animTimer);
-  let col=0;
-  setFrame(row,0);
-  animTimer=setInterval(()=>{
-    col++;
-    if(col>=FRAMES_PER_ROW){
-      if(loop){col=0}
-      else{clearInterval(animTimer);if(onDone)onDone();return}
-    }
-    setFrame(row,col);
-  },speed);
-}
-function say(text,duration=2000){
-  bubble.textContent=text;bubble.classList.add('show');
-  clearTimeout(bubble._t);
-  bubble._t=setTimeout(()=>bubble.classList.remove('show'),duration);
-}
-function idle(){
-  idlePhase=true;playRow(0,150,true);
-}
-window.petAPI={
-  showHappy(){idlePhase=false;playRow(3,120,false,idle);say('喵~');},
-  showAngry(){idlePhase=false;playRow(5,180,false,idle);say('哼。');},
-  showSurprised(){idlePhase=false;playRow(4,100,false,idle);say('!');},
-  say(text){say(text,3000);},
-  resetIdle(){idle();}
-};
-idle();
-</script>
-</body></html>
+*{margin:0;padding:0}
+body{background:#ff0000;width:100%;height:100%}
+.box{width:100%;height:100%;background:url('spritesheet.png');background-size:contain;background-repeat:no-repeat;background-position:center}
+</style></head>
+<body><div class="box"></div></body></html>
