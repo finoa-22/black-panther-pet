@@ -4,10 +4,13 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -15,21 +18,35 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.ImageView;
 import android.widget.Toast;
 import java.util.ArrayList;
 
 public class FloatService extends Service {
     private WindowManager windowManager;
-    private ImageView imageView;
+    private PetView petView;
     private WindowManager.LayoutParams layoutParams;
     private ArrayList<Bitmap> frames = new ArrayList<>();
     private int frameW, frameH, cols = 8, rows = 9;
+    private int curFrameIdx = 0;
     private Handler handler = new Handler();
     private Runnable animRunnable;
     private long lastTap = 0, touchStart = 0;
     private float initX, initY, initTouchX, initTouchY;
     private boolean hasMoved = false;
+    
+    class PetView extends View {
+        public PetView(Context ctx) { super(ctx); }
+        @Override
+        protected void onDraw(Canvas canvas) {
+            if (curFrameIdx >= 0 && curFrameIdx < frames.size()) {
+                Bitmap frame = frames.get(curFrameIdx);
+                if (frame != null && !frame.isRecycled()) {
+                    Rect dst = new Rect(0, 0, getWidth(), getHeight());
+                    canvas.drawBitmap(frame, null, dst, null);
+                }
+            }
+        }
+    }
     
     @Override
     public void onCreate() {
@@ -54,13 +71,8 @@ public class FloatService extends Service {
             e.printStackTrace();
         }
         
-        imageView = new ImageView(this);
-        imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        if (!frames.isEmpty()) {
-            imageView.setImageBitmap(frames.get(0));
-        }
-        
-        imageView.setOnTouchListener(new View.OnTouchListener() {
+        petView = new PetView(this);
+        petView.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getAction()) {
@@ -78,7 +90,7 @@ public class FloatService extends Service {
                         if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasMoved = true;
                         layoutParams.x = (int)(initX + dx);
                         layoutParams.y = (int)(initY + dy);
-                        windowManager.updateViewLayout(imageView, layoutParams);
+                        windowManager.updateViewLayout(petView, layoutParams);
                         return true;
                     case MotionEvent.ACTION_UP:
                         long dt = System.currentTimeMillis() - touchStart;
@@ -86,7 +98,7 @@ public class FloatService extends Service {
                         if (dt < 300) {
                             long since = System.currentTimeMillis() - lastTap;
                             if (since < 400) { playRow(6, 80, false); showToast("喵喵喵~"); }
-                            else if (since < 800) { playRow(4, 100, false); showToast("嗷！"); }
+                            else if (since < 800) { playRow(4, 100, false); showToast("嗚！"); }
                             else { playRow(2, 120, false); showToast("喵~"); }
                             lastTap = System.currentTimeMillis();
                         } else if (dt > 600) {
@@ -112,29 +124,29 @@ public class FloatService extends Service {
         layoutParams.gravity = Gravity.TOP | Gravity.START;
         layoutParams.x = 100;
         layoutParams.y = 400;
-        windowManager.addView(imageView, layoutParams);
+        windowManager.addView(petView, layoutParams);
         idle();
     }
     
-    private void showFrame(int row, int col) {
-        int idx = row * cols + col;
+    private void showFrame(int idx) {
         if (idx >= 0 && idx < frames.size()) {
-            imageView.setImageBitmap(frames.get(idx));
+            curFrameIdx = idx;
+            petView.invalidate();
         }
     }
     
     private void playRow(int row, int speed, boolean loop) {
         if (animRunnable != null) handler.removeCallbacks(animRunnable);
-        showFrame(row, 0);
+        showFrame(row * cols);
         animRunnable = new Runnable() {
             int c = 0;
             public void run() {
                 c++;
                 if (c >= cols) {
-                    if (loop) { c = 0; showFrame(row, 0); }
-                    else { showFrame(row, cols - 1); idle(); return; }
+                    if (loop) { c = 0; showFrame(row * cols); }
+                    else { showFrame(row * cols + cols - 1); idle(); return; }
                 } else {
-                    showFrame(row, c);
+                    showFrame(row * cols + c);
                 }
                 handler.postDelayed(this, speed);
             }
@@ -157,7 +169,7 @@ public class FloatService extends Service {
     private void startForegroundNotification() {
         String channelId = "pet_overlay";
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(channelId, "\u684c\u5ba0", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel channel = new NotificationChannel(channelId, "桌宠", NotificationManager.IMPORTANCE_LOW);
             ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(channel);
         }
         Intent i = new Intent(this, MainActivity.class);
@@ -165,8 +177,8 @@ public class FloatService extends Service {
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             ? new Notification.Builder(this, channelId)
             : new Notification.Builder(this);
-        builder.setContentTitle("\u6708\u85aa\u55b5")
-                .setContentText("\u8e72\u5728\u5c4f\u5e55\u89d2\u843d")
+        builder.setContentTitle("月薪喵")
+                .setContentText("蹲在屏幕角落")
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
                 .setContentIntent(pi)
                 .setOngoing(true);
@@ -179,7 +191,7 @@ public class FloatService extends Service {
     @Override
     public void onDestroy() {
         if (handler != null && animRunnable != null) handler.removeCallbacks(animRunnable);
-        if (windowManager != null && imageView != null) windowManager.removeView(imageView);
+        if (windowManager != null && petView != null) windowManager.removeView(petView);
         for (Bitmap b : frames) { if (b != null && !b.isRecycled()) b.recycle(); }
         frames.clear();
         super.onDestroy();
