@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">用于检测前台应用变化，让月薪喵做出反应</string>
+</resources>
