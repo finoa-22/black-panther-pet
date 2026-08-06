@@ -15,6 +15,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebSettings;
 
 public class FloatService extends Service {
 
@@ -33,16 +34,13 @@ public class FloatService extends Service {
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
         webView.getSettings().setAllowFileAccess(true);
+        webView.getSettings().setUseWideViewPort(false);
+        webView.getSettings().setLoadWithOverviewMode(false);
+        webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
         webView.setBackgroundColor(0x00000000);
         webView.setVerticalScrollBarEnabled(false);
         webView.setHorizontalScrollBarEnabled(false);
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                view.evaluateJavascript(
-                    "document.body.style.margin='0';document.body.style.overflow='hidden';", null);
-            }
-        });
+        webView.setWebViewClient(new WebViewClient());
         webView.loadUrl("file:///android_asset/pet.html");
 
         int type;
@@ -52,24 +50,34 @@ public class FloatService extends Service {
             type = WindowManager.LayoutParams.TYPE_PHONE;
         }
 
+        int size = dpToPx(300);
         layoutParams = new WindowManager.LayoutParams(
-            200,
-            200,
+            size,
+            size,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         );
         layoutParams.gravity = Gravity.TOP | Gravity.START;
-        layoutParams.x = 100;
-        layoutParams.y = 400;
+        layoutParams.x = 200;
+        layoutParams.y = 500;
 
-        webView.setOnTouchListener(new View.OnTouchListener() {
-            private int initialX;
-            private int initialY;
-            private float initialTouchX;
-            private float initialTouchY;
+        webView.setOnTouchListener(createTouchListener());
+        windowManager.addView(webView, layoutParams);
+    }
 
+    private int dpToPx(int dp) {
+        return (int) (dp * getResources().getDisplayMetrics().density);
+    }
+
+    private int initialX, initialY;
+    private float initialTouchX, initialTouchY;
+    private long touchStartTime, lastTapTime;
+    private boolean hasMoved;
+
+    private View.OnTouchListener createTouchListener() {
+        return new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getAction()) {
@@ -78,23 +86,38 @@ public class FloatService extends Service {
                         initialY = layoutParams.y;
                         initialTouchX = event.getRawX();
                         initialTouchY = event.getRawY();
-                        return false;
+                        touchStartTime = System.currentTimeMillis();
+                        hasMoved = false;
+                        return true;
                     case MotionEvent.ACTION_MOVE:
-                        int deltaX = (int) (event.getRawX() - initialTouchX);
-                        int deltaY = (int) (event.getRawY() - initialTouchY);
-                        if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
-                            layoutParams.x = initialX + deltaX;
-                            layoutParams.y = initialY + deltaY;
+                        int dx = (int) (event.getRawX() - initialTouchX);
+                        int dy = (int) (event.getRawY() - initialTouchY);
+                        if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+                            hasMoved = true;
+                            layoutParams.x = initialX + dx;
+                            layoutParams.y = initialY + dy;
                             windowManager.updateViewLayout(webView, layoutParams);
-                            return true;
                         }
-                        break;
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        if (!hasMoved) {
+                            long elapsed = System.currentTimeMillis() - touchStartTime;
+                            long sinceLast = System.currentTimeMillis() - lastTapTime;
+                            if (elapsed > 600) {
+                                webView.evaluateJavascript("petAPI.showAngry();petAPI.say('...');", null);
+                            } else if (sinceLast < 350) {
+                                webView.evaluateJavascript("petAPI.showHappy();petAPI.say('喵~');", null);
+                                lastTapTime = 0;
+                            } else {
+                                lastTapTime = System.currentTimeMillis();
+                                webView.evaluateJavascript("petAPI.showSurprised();petAPI.say('!');", null);
+                            }
+                        }
+                        return true;
                 }
                 return false;
             }
-        });
-
-        windowManager.addView(webView, layoutParams);
+        };
     }
 
     private void startForegroundNotification() {
@@ -102,7 +125,7 @@ public class FloatService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                 channelId,
-                "黑豹悬浮窗",
+                "月薪喵",
                 NotificationManager.IMPORTANCE_LOW
             );
             NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -120,10 +143,12 @@ public class FloatService extends Service {
         } else {
             builder = new Notification.Builder(this);
         }
-        builder.setContentTitle("黑豹")
-                .setContentText("蹲在你屏幕角落")
-                .setSmallIcon(android.R.drawable.ic_menu_info_details)
-                .setContentIntent(pi);
+        builder.setContentTitle("月薪喵")
+                .setContentText("蹲在屏幕角落")
+                .setSmallIcon(android.R.drawable.ic_menu_compass)
+                .setContentIntent(pi)
+                .setOngoing(true)
+                .setSilent(true);
 
         startForeground(1, builder.build());
     }
