@@ -41,7 +41,16 @@ public class FloatService extends Service {
         webView.setVerticalScrollBarEnabled(false);
         webView.setHorizontalScrollBarEnabled(false);
         webView.setWebViewClient(new WebViewClient());
-        webView.loadUrl("file:///android_asset/pet.html");
+        try {
+            java.io.InputStream is = getAssets().open("pet.html");
+            byte[] buf = new byte[is.available()];
+            is.read(buf);
+            is.close();
+            String html = new String(buf);
+            webView.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null);
+        } catch (Exception e) {
+            webView.loadUrl("file:///android_asset/pet.html");
+        }
 
         int type;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
