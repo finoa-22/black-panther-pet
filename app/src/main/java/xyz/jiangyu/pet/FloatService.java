@@ -23,8 +23,6 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.Random;
 import android.app.usage.UsageStatsManager;
-import android.app.usage.UsageStats;
-import java.util.List;
 
 public class FloatService extends Service {
     private WindowManager windowManager;
@@ -214,17 +212,24 @@ public class FloatService extends Service {
     }
     
     private String getForegroundApp() {
-        UsageStatsManager usm = (UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
-        long now = System.currentTimeMillis();
-        List<UsageStats> stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 10000, now);
-        if (stats == null || stats.isEmpty()) return null;
-        UsageStats recent = null;
-        for (UsageStats s : stats) {
-            if (recent == null || s.getLastTimeUsed() > recent.getLastTimeUsed()) {
-                recent = s;
+        try {
+            UsageStatsManager usm = (UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
+            long now = System.currentTimeMillis();
+            android.app.usage.UsageEvents events = usm.queryEvents(now - 5000, now);
+            if (events == null) return null;
+            String fg = null;
+            android.app.usage.UsageEvents.Event ev = new android.app.usage.UsageEvents.Event();
+            while (events.hasNextEvent()) {
+                events.getNextEvent(ev);
+                if (ev.getEventType() == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND
+                    || ev.getEventType() == android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED) {
+                    fg = ev.getPackageName();
+                }
             }
+            return fg;
+        } catch (Exception e) {
+            return null;
         }
-        return recent != null ? recent.getPackageName() : null;
     }
     
     private void onAppChanged(String pkg) {
