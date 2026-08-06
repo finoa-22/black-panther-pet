@@ -8,21 +8,31 @@ import android.os.Bundle;
 import android.provider.Settings;
 
 public class MainActivity extends Activity {
+    private boolean started = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        checkAndStart();
+    }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!started) checkAndStart();
+    }
+
+    private void checkAndStart() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (!Settings.canDrawOverlays(this)) {
-                Intent intent = new Intent(
+                startActivity(new Intent(
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + getPackageName())
-                );
-                startActivity(intent);
+                ));
                 return;
             }
         }
-
+        started = true;
         startService(new Intent(this, FloatService.class));
         finish();
     }
