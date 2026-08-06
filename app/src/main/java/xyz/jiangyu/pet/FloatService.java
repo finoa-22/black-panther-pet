@@ -234,7 +234,7 @@ public class FloatService extends Service {
                             handler.post(() -> {
                                 showToast(msg);
                             });
-                            f.delete();
+                            try { new java.io.FileWriter(f).close(); } catch (Exception e2) { f.delete(); }
                         }
                     }
                 } catch (Exception e) {}
