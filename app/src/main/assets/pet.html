@@ -1,8 +1,71 @@
 <!DOCTYPE html>
 <html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <style>
-*{margin:0;padding:0}
-body{background:#ff0000;width:100%;height:100%}
-.box{width:100%;height:100%;background:url('spritesheet.png');background-size:contain;background-repeat:no-repeat;background-position:center}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:transparent;width:100%;height:100%;overflow:hidden}
+.pet{width:100%;height:100%;background:url('spritesheet.png');background-size:1536px 1872px;image-rendering:pixelated;background-repeat:no-repeat;background-position:0 0}
+.bubble{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.85);color:#fff;font-size:12px;padding:4px 10px;border-radius:10px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity 0.2s;font-family:sans-serif}
+.bubble.show{opacity:1}
 </style></head>
-<body><div class="box"></div></body></html>
+<body>
+<div class="pet" id="pet"></div>
+<div class="bubble" id="bubble"></div>
+<script>
+var pet=document.getElementById('pet');
+var bubble=document.getElementById('bubble');
+var frameW=192, frameH=208;
+var cols=8, rows=9;
+var curFrame=0, curRow=0, curCol=0;
+var animTimer=null;
+var lastTap=0, touchStart=0, touchMoved=false;
+function setFrame(row,col){
+  curRow=row; curCol=col;
+  curFrame=row*cols+col;
+  pet.style.backgroundPosition=(-col*frameW)+'px '+(-row*frameH)+'px';
+}
+function playRow(row,speed,loop,onDone){
+  clearInterval(animTimer);
+  curCol=0;
+  setFrame(row,0);
+  animTimer=setInterval(function(){
+    curCol++;
+    if(curCol>=cols){
+      if(loop){curCol=0;setFrame(row,0);}
+      else{clearInterval(animTimer);curCol=cols-1;if(onDone)onDone();}
+    }else{
+      setFrame(row,curCol);
+    }
+  },speed||120);
+}
+function idle(){playRow(0,150,true);}
+function showBubble(text){
+  bubble.textContent=text;
+  bubble.classList.add('show');
+  setTimeout(function(){bubble.classList.remove('show');},1200);
+}
+pet.addEventListener('pointerdown',function(e){
+  touchStart=Date.now();
+  touchMoved=false;
+  e.preventDefault();
+});
+pet.addEventListener('pointermove',function(e){
+  touchMoved=true;
+});
+pet.addEventListener('pointerup',function(e){
+  var dt=Date.now()-touchStart;
+  if(touchMoved)return;
+  if(dt<300){
+    var since=Date.now()-lastTap;
+    if(since<400){playRow(6,80,false,idle);showBubble('喵喵喵~');}
+    else if(since<800){playRow(4,100,false,idle);showBubble('嗷！');}
+    else{playRow(2,120,false,idle);showBubble('喵~');}
+    lastTap=Date.now();
+  }else if(dt>600){
+    playRow(8,100,false,idle);
+    showBubble('呼噜噜...');
+  }
+});
+idle();
+</script>
+</body></html>
