@@ -144,8 +144,6 @@ public class FloatService extends Service {
                     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
                         hasMoved = true;
                         if (closeCheck != null) handler.removeCallbacks(closeCheck);
-        watching = false;
-        try { if (appWatcher != null) appWatcher.join(500); } catch (Exception e) {}
                     }
                     layoutParams.x = (int)(initX + dx);
                     layoutParams.y = (int)(initY + dy);
@@ -153,8 +151,6 @@ public class FloatService extends Service {
                     return true;
                 case MotionEvent.ACTION_UP:
                     if (closeCheck != null) handler.removeCallbacks(closeCheck);
-        watching = false;
-        try { if (appWatcher != null) appWatcher.join(500); } catch (Exception e) {}
                     long dt = System.currentTimeMillis() - touchStart;
                     if (hasMoved) return true;
                     heatUp(10);
@@ -206,11 +202,7 @@ public class FloatService extends Service {
                     count++;
                     final String p = pkg;
                     final int c = count;
-                    handler.post(() -> {
-                        if (p == null) showToast("#" + c + " 检测不到前台App");
-                        else if (p.equals(getPackageName())) showToast("#" + c + " 是我自己");
-                        else showToast("#" + c + " " + p);
-                    });
+                    // debug removed
                     if (pkg != null && !pkg.equals(lastApp) && !pkg.equals(getPackageName())) {
                         lastApp = pkg;
                         onAppChanged(pkg);
