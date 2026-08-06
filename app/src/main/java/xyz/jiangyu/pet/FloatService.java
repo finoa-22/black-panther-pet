@@ -224,7 +224,7 @@ public class FloatService extends Service {
         fileWatcher = new Thread(() -> {
             while (fileWatching && running) {
                 try {
-                    java.io.File f = new java.io.File("/sdcard/pet_message.txt");
+                    java.io.File f = new java.io.File("/data/local/tmp/pet_message.txt");
                     if (f.exists()) {
                         java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader(f));
                         String line = br.readLine();
