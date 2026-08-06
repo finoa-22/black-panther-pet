@@ -148,7 +148,7 @@ public class FloatService extends Service {
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
                 .setContentIntent(pi)
                 .setOngoing(true)
-                .setSilent(true);
+                
 
         startForeground(1, builder.build());
     }
