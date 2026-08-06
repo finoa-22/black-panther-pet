@@ -31,12 +31,14 @@ public class FloatService extends Service {
     private int curFrameIdx = 0;
     private volatile boolean running = true;
     private Thread renderThread;
-    private long lastTap = 0, touchStart = 0;
+    private long lastTap = 0, touchStart = 0, touchDownTime = 0;
     private float initX, initY, initTouchX, initTouchY;
     private boolean hasMoved = false;
     private int animRow = 0, animSpeed = 250;
     private int animMaxCols = 2;
     private boolean animLoop = true, animActive = false;
+    private Handler handler = new Handler();
+    private Runnable closeCheck;
     
     @Override
     public void onCreate() {
@@ -89,17 +91,30 @@ public class FloatService extends Service {
                     initTouchX = event.getRawX();
                     initTouchY = event.getRawY();
                     touchStart = System.currentTimeMillis();
+                    touchDownTime = touchStart;
                     hasMoved = false;
+                    // 长按关闭检测：2秒后触发
+                    closeCheck = () -> {
+                        if (!hasMoved && System.currentTimeMillis() - touchDownTime >= 1900) {
+                            showToast("月薪喵下班啦~");
+                            handler.postDelayed(() -> stopSelf(), 400);
+                        }
+                    };
+                    handler.postDelayed(closeCheck, 2000);
                     return true;
                 case MotionEvent.ACTION_MOVE:
                     float dx = event.getRawX() - initTouchX;
                     float dy = event.getRawY() - initTouchY;
-                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasMoved = true;
+                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                        hasMoved = true;
+                        if (closeCheck != null) handler.removeCallbacks(closeCheck);
+                    }
                     layoutParams.x = (int)(initX + dx);
                     layoutParams.y = (int)(initY + dy);
                     windowManager.updateViewLayout(surfaceView, layoutParams);
                     return true;
                 case MotionEvent.ACTION_UP:
+                    if (closeCheck != null) handler.removeCallbacks(closeCheck);
                     long dt = System.currentTimeMillis() - touchStart;
                     if (hasMoved) return true;
                     if (dt < 300) {
@@ -108,7 +123,7 @@ public class FloatService extends Service {
                         else if (since < 800) { triggerAnim(4, 100, false); showToast("嗷！"); }
                         else { triggerAnim(2, 120, false); showToast("喵~"); }
                         lastTap = System.currentTimeMillis();
-                    } else if (dt > 600) {
+                    } else if (dt > 600 && dt < 1800) {
                         triggerAnim(8, 100, false);
                         showToast("呼噜噜...");
                     }
@@ -199,20 +214,37 @@ public class FloatService extends Service {
     private void startForegroundNotification() {
         String channelId = "pet_overlay";
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(channelId, "桌宠", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel channel = new NotificationChannel(channelId, "月薪喵", NotificationManager.IMPORTANCE_LOW);
+            channel.setDescription("桌宠状态");
             ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(channel);
         }
-        Intent i = new Intent(this, MainActivity.class);
-        PendingIntent pi = PendingIntent.getActivity(this, 0, i, PendingIntent.FLAG_IMMUTABLE);
+        
+        Intent openIntent = new Intent(this, MainActivity.class);
+        PendingIntent openPi = PendingIntent.getActivity(this, 0, openIntent, PendingIntent.FLAG_IMMUTABLE);
+        
+        Intent stopIntent = new Intent(this, FloatService.class);
+        stopIntent.setAction("STOP_SERVICE");
+        PendingIntent stopPi = PendingIntent.getService(this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE);
+        
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             ? new Notification.Builder(this, channelId)
             : new Notification.Builder(this);
         builder.setContentTitle("月薪喵")
-                .setContentText("蹲在屏幕角落")
+                .setContentText("戳我玩 | 长按下班 | 拖动搬家")
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
-                .setContentIntent(pi)
-                .setOngoing(true);
+                .setContentIntent(openPi)
+                .setOngoing(true)
+                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "下班", stopPi);
         startForeground(1, builder.build());
+    }
+    
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && "STOP_SERVICE".equals(intent.getAction())) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+        return START_STICKY;
     }
     
     @Override
@@ -222,9 +254,12 @@ public class FloatService extends Service {
     public void onDestroy() {
         running = false;
         try { if (renderThread != null) renderThread.join(500); } catch (Exception e) {}
-        if (windowManager != null && surfaceView != null) windowManager.removeView(surfaceView);
+        if (windowManager != null && surfaceView != null) {
+            try { windowManager.removeView(surfaceView); } catch (Exception e) {}
+        }
         for (Bitmap b : frames) { if (b != null && !b.isRecycled()) b.recycle(); }
         frames.clear();
+        if (closeCheck != null) handler.removeCallbacks(closeCheck);
         super.onDestroy();
     }
 }
