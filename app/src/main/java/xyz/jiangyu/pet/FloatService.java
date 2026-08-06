@@ -196,15 +196,28 @@ public class FloatService extends Service {
 
     private void startAppWatcher() {
         watching = true;
+        handler.post(() -> showToast("App感知启动"));
         appWatcher = new Thread(() -> {
+            try { Thread.sleep(2000); } catch (Exception e) {}
+            int count = 0;
             while (watching && running) {
                 try {
                     String pkg = getForegroundApp();
+                    count++;
+                    final String p = pkg;
+                    final int c = count;
+                    handler.post(() -> {
+                        if (p == null) showToast("#" + c + " 检测不到前台App");
+                        else if (p.equals(getPackageName())) showToast("#" + c + " 是我自己");
+                        else showToast("#" + c + " " + p);
+                    });
                     if (pkg != null && !pkg.equals(lastApp) && !pkg.equals(getPackageName())) {
                         lastApp = pkg;
                         onAppChanged(pkg);
                     }
-                } catch (Exception e) {}
+                } catch (Exception e) {
+                    handler.post(() -> showToast("异常: " + e.getMessage()));
+                }
                 try { Thread.sleep(3000); } catch (Exception e) {}
             }
         });
@@ -215,18 +228,32 @@ public class FloatService extends Service {
         try {
             UsageStatsManager usm = (UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
             long now = System.currentTimeMillis();
-            android.app.usage.UsageEvents events = usm.queryEvents(now - 5000, now);
-            if (events == null) return null;
-            String fg = null;
-            android.app.usage.UsageEvents.Event ev = new android.app.usage.UsageEvents.Event();
-            while (events.hasNextEvent()) {
-                events.getNextEvent(ev);
-                if (ev.getEventType() == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND
-                    || ev.getEventType() == android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED) {
-                    fg = ev.getPackageName();
+            // Try UsageEvents first
+            android.app.usage.UsageEvents events = usm.queryEvents(now - 10000, now);
+            if (events != null) {
+                String fg = null;
+                android.app.usage.UsageEvents.Event ev = new android.app.usage.UsageEvents.Event();
+                while (events.hasNextEvent()) {
+                    events.getNextEvent(ev);
+                    if (ev.getEventType() == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND
+                        || ev.getEventType() == android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED) {
+                        fg = ev.getPackageName();
+                    }
                 }
+                if (fg != null) return fg;
             }
-            return fg;
+            // Fallback: queryUsageStats
+            java.util.List<android.app.usage.UsageStats> stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, now - 30000, now);
+            if (stats != null && !stats.isEmpty()) {
+                android.app.usage.UsageStats recent = null;
+                for (android.app.usage.UsageStats s : stats) {
+                    if (recent == null || s.getLastTimeUsed() > recent.getLastTimeUsed()) {
+                        recent = s;
+                    }
+                }
+                if (recent != null) return recent.getPackageName();
+            }
+            return null;
         } catch (Exception e) {
             return null;
         }
