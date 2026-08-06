@@ -218,7 +218,7 @@ public class FloatService extends Service {
                 } catch (Exception e) {
                     handler.post(() -> showToast("异常: " + e.getMessage()));
                 }
-                try { Thread.sleep(3000); } catch (Exception e) {}
+                try { Thread.sleep(1500); } catch (Exception e) {}
             }
         });
         appWatcher.start();
@@ -229,7 +229,7 @@ public class FloatService extends Service {
             UsageStatsManager usm = (UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
             long now = System.currentTimeMillis();
             // Try UsageEvents first
-            android.app.usage.UsageEvents events = usm.queryEvents(now - 10000, now);
+            android.app.usage.UsageEvents events = usm.queryEvents(now - 60000, now);
             if (events != null) {
                 String fg = null;
                 android.app.usage.UsageEvents.Event ev = new android.app.usage.UsageEvents.Event();
@@ -243,7 +243,7 @@ public class FloatService extends Service {
                 if (fg != null) return fg;
             }
             // Fallback: queryUsageStats
-            java.util.List<android.app.usage.UsageStats> stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, now - 30000, now);
+            java.util.List<android.app.usage.UsageStats> stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, now - 60000, now);
             if (stats != null && !stats.isEmpty()) {
                 android.app.usage.UsageStats recent = null;
                 for (android.app.usage.UsageStats s : stats) {
