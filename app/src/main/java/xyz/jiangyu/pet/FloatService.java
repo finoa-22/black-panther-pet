@@ -44,6 +44,8 @@ public class FloatService extends Service {
     private String lastApp = "";
     private Thread appWatcher;
     private volatile boolean watching = false;
+    private Thread fileWatcher;
+    private volatile boolean fileWatching = false;
     private static final java.util.Map<String, String> APP_NAMES = new java.util.HashMap<String, String>() {{
         put("com.ai.assistance.operit", "在跟我聊天呢");
         put("com.xingin.xhs", "在小红书冲浪");
@@ -186,6 +188,7 @@ public class FloatService extends Service {
         
         startHeatLoop();
         startAppWatcher();
+        startFileWatcher();
         startMurmurLoop();
     }
     
@@ -214,6 +217,31 @@ public class FloatService extends Service {
             }
         });
         appWatcher.start();
+    }
+    
+    private void startFileWatcher() {
+        fileWatching = true;
+        fileWatcher = new Thread(() -> {
+            while (fileWatching && running) {
+                try {
+                    java.io.File f = new java.io.File("/sdcard/pet_message.txt");
+                    if (f.exists()) {
+                        java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader(f));
+                        String line = br.readLine();
+                        br.close();
+                        if (line != null && !line.trim().isEmpty()) {
+                            final String msg = line.trim();
+                            handler.post(() -> {
+                                showToast(msg);
+                            });
+                            f.delete();
+                        }
+                    }
+                } catch (Exception e) {}
+                try { Thread.sleep(5000); } catch (Exception e) {}
+            }
+        });
+        fileWatcher.start();
     }
     
     private String getForegroundApp() {
@@ -445,7 +473,9 @@ public class FloatService extends Service {
         frames.clear();
         if (closeCheck != null) handler.removeCallbacks(closeCheck);
         watching = false;
+        fileWatching = false;
         try { if (appWatcher != null) appWatcher.join(500); } catch (Exception e) {}
+        try { if (fileWatcher != null) fileWatcher.join(500); } catch (Exception e) {}
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
