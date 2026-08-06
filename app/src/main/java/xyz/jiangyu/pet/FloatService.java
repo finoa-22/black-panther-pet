@@ -17,42 +17,49 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.Toast;
+import java.util.ArrayList;
 
 public class FloatService extends Service {
     private WindowManager windowManager;
     private ImageView imageView;
     private WindowManager.LayoutParams layoutParams;
-    private Bitmap spritesheet;
-    private int frameW = 192, frameH = 208;
-    private int cols = 8, rows = 9;
-    private int curRow = 0, curCol = 0;
+    private ArrayList<Bitmap> frames = new ArrayList<>();
+    private int frameW, frameH, cols = 8, rows = 9;
     private Handler handler = new Handler();
     private Runnable animRunnable;
     private long lastTap = 0, touchStart = 0;
     private float initX, initY, initTouchX, initTouchY;
     private boolean hasMoved = false;
-
+    
     @Override
     public void onCreate() {
         super.onCreate();
         startForegroundNotification();
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         
-        // Load spritesheet from assets
         try {
-            spritesheet = BitmapFactory.decodeStream(getAssets().open("spritesheet.png"));
-            if (spritesheet != null) {
-                frameW = spritesheet.getWidth() / cols;
-                frameH = spritesheet.getHeight() / rows;
+            Bitmap sheet = BitmapFactory.decodeStream(getAssets().open("spritesheet.png"));
+            if (sheet != null) {
+                frameW = sheet.getWidth() / cols;
+                frameH = sheet.getHeight() / rows;
+                for (int r = 0; r < rows; r++) {
+                    for (int c = 0; c < cols; c++) {
+                        Bitmap frame = Bitmap.createBitmap(sheet, c * frameW, r * frameH, frameW, frameH);
+                        frames.add(frame);
+                    }
+                }
+                sheet.recycle();
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         
         imageView = new ImageView(this);
-        if (spritesheet != null) {
-            setFrame(0, 0);
+        imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        if (!frames.isEmpty()) {
+            imageView.setImageBitmap(frames.get(0));
         }
+        
         imageView.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -92,16 +99,12 @@ public class FloatService extends Service {
             }
         });
         
-        int type;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-        } else {
-            type = WindowManager.LayoutParams.TYPE_PHONE;
-        }
+        int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            : WindowManager.LayoutParams.TYPE_PHONE;
         int size = dpToPx(150);
         layoutParams = new WindowManager.LayoutParams(
-            size, size,
-            type,
+            size, size, type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
@@ -110,41 +113,33 @@ public class FloatService extends Service {
         layoutParams.x = 100;
         layoutParams.y = 400;
         windowManager.addView(imageView, layoutParams);
-        
         idle();
     }
     
-    private void setFrame(int row, int col) {
-        if (spritesheet == null) return;
-        curRow = row; curCol = col;
-        int x = col * frameW;
-        int y = row * frameH;
-        Bitmap frame = Bitmap.createBitmap(spritesheet, x, y, frameW, frameH);
-        imageView.setImageBitmap(frame);
+    private void showFrame(int row, int col) {
+        int idx = row * cols + col;
+        if (idx >= 0 && idx < frames.size()) {
+            imageView.setImageBitmap(frames.get(idx));
+        }
     }
     
     private void playRow(int row, int speed, boolean loop) {
         if (animRunnable != null) handler.removeCallbacks(animRunnable);
-        curCol = 0;
-        setFrame(row, 0);
-        final int r = row;
-        final int sp = speed;
-        final boolean lp = loop;
+        showFrame(row, 0);
         animRunnable = new Runnable() {
             int c = 0;
-            @Override
             public void run() {
                 c++;
                 if (c >= cols) {
-                    if (lp) { c = 0; setFrame(r, 0); }
-                    else { c = cols - 1; idle(); return; }
+                    if (loop) { c = 0; showFrame(row, 0); }
+                    else { showFrame(row, cols - 1); idle(); return; }
                 } else {
-                    setFrame(r, c);
+                    showFrame(row, c);
                 }
-                handler.postDelayed(this, sp);
+                handler.postDelayed(this, speed);
             }
         };
-        handler.postDelayed(animRunnable, sp);
+        handler.postDelayed(animRunnable, speed);
     }
     
     private void idle() {
@@ -162,20 +157,16 @@ public class FloatService extends Service {
     private void startForegroundNotification() {
         String channelId = "pet_overlay";
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(channelId, "桌宠", NotificationManager.IMPORTANCE_LOW);
-            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-            nm.createNotificationChannel(channel);
+            NotificationChannel channel = new NotificationChannel(channelId, "\u684c\u5ba0", NotificationManager.IMPORTANCE_LOW);
+            ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(channel);
         }
         Intent i = new Intent(this, MainActivity.class);
         PendingIntent pi = PendingIntent.getActivity(this, 0, i, PendingIntent.FLAG_IMMUTABLE);
-        Notification.Builder builder;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            builder = new Notification.Builder(this, channelId);
-        } else {
-            builder = new Notification.Builder(this);
-        }
-        builder.setContentTitle("月薪喵")
-                .setContentText("蹲在屏幕角落")
+        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            ? new Notification.Builder(this, channelId)
+            : new Notification.Builder(this);
+        builder.setContentTitle("\u6708\u85aa\u55b5")
+                .setContentText("\u8e72\u5728\u5c4f\u5e55\u89d2\u843d")
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
                 .setContentIntent(pi)
                 .setOngoing(true);
@@ -189,6 +180,8 @@ public class FloatService extends Service {
     public void onDestroy() {
         if (handler != null && animRunnable != null) handler.removeCallbacks(animRunnable);
         if (windowManager != null && imageView != null) windowManager.removeView(imageView);
+        for (Bitmap b : frames) { if (b != null && !b.isRecycled()) b.recycle(); }
+        frames.clear();
         super.onDestroy();
     }
 }
