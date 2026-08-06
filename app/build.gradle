@@ -1,7 +1,8 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 34
+    namespace 'xyz.jiangyu.pet'
+    compileSdk 34
 
     defaultConfig {
         applicationId 'xyz.jiangyu.pet'
