@@ -102,7 +102,7 @@ public class FloatService extends Service {
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             : WindowManager.LayoutParams.TYPE_PHONE;
-        int size = dpToPx(150);
+        int size = dpToPx(100);
         layoutParams = new WindowManager.LayoutParams(
             size, size, type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
