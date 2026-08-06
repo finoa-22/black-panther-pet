@@ -413,7 +413,7 @@ public class FloatService extends Service {
     }
     
     private void showToast(String text) {
-        Toast.makeText(FloatService.this, text, Toast.LENGTH_SHORT).show();
+        handler.post(() -> Toast.makeText(FloatService.this, text, Toast.LENGTH_SHORT).show());
     }
     
     private int dpToPx(int dp) {
