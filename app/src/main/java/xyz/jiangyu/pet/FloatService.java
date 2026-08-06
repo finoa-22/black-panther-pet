@@ -50,7 +50,7 @@ public class FloatService extends Service {
             type = WindowManager.LayoutParams.TYPE_PHONE;
         }
 
-        int size = dpToPx(300);
+        int size = dpToPx(150);
         layoutParams = new WindowManager.LayoutParams(
             size,
             size,
