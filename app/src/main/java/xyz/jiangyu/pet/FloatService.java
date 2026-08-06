@@ -68,6 +68,7 @@ public class FloatService extends Service {
                 running = true;
                 renderThread = new Thread(new RenderLoop());
                 renderThread.start();
+                drawFrame();
             }
             @Override
             public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
