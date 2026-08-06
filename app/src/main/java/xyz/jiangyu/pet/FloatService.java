@@ -33,7 +33,7 @@ public class FloatService extends Service {
     private long lastTap = 0, touchStart = 0;
     private float initX, initY, initTouchX, initTouchY;
     private boolean hasMoved = false;
-    private int animRow = 0, animSpeed = 150;
+    private int animRow = 0, animSpeed = 250;
     private boolean animLoop = true, animActive = false;
     
     @Override
@@ -182,7 +182,7 @@ public class FloatService extends Service {
     
     private synchronized void triggerIdle() {
         animRow = 0;
-        animSpeed = 150;
+        animSpeed = 250;
         animLoop = true;
         animActive = true;
     }
