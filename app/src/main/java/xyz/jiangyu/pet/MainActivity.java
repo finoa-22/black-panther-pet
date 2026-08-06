@@ -7,6 +7,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.app.AppOpsManager;
+import android.os.Process;
 public class MainActivity extends Activity {
     private boolean started = false;
     @Override
@@ -29,6 +31,12 @@ public class MainActivity extends Activity {
                 return;
             }
         }
+        if (Build.VERSION.SDK_INT >= 21) {
+            if (!hasUsageStatsPermission()) {
+                startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+                return;
+            }
+        }
         if (Build.VERSION.SDK_INT >= 33) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 100);
@@ -43,5 +51,11 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
         super.onRequestPermissionsResult(code, perms, results);
         checkAndStart();
+    }
+
+    private boolean hasUsageStatsPermission() {
+        AppOpsManager appOps = (AppOpsManager) getSystemService(APP_OPS_SERVICE);
+        int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), getPackageName());
+        return mode == AppOpsManager.MODE_ALLOWED;
     }
 }
