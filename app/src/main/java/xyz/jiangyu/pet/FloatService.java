@@ -8,33 +8,21 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
 import android.graphics.PixelFormat;
-import android.graphics.Rect;
 import android.os.Build;
 import android.os.IBinder;
 import android.view.Gravity;
 import android.view.MotionEvent;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
+import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageView;
 import android.widget.Toast;
-import java.util.ArrayList;
 
 public class FloatService extends Service {
     private WindowManager windowManager;
-    private SurfaceView surfaceView;
+    private ImageView imageView;
     private WindowManager.LayoutParams layoutParams;
-    private ArrayList<Bitmap> frames = new ArrayList<>();
-    private int frameW, frameH, cols = 8, rows = 9;
-    private int curFrameIdx = 0;
-    private volatile boolean running = true;
-    private Thread renderThread;
-    private long lastTap = 0, touchStart = 0;
-    private float initX, initY, initTouchX, initTouchY;
-    private boolean hasMoved = false;
-    private int animRow = 0, animSpeed = 250;
-    private boolean animLoop = true, animActive = false;
+    private long lastTap = 0;
     
     @Override
     public void onCreate() {
@@ -42,77 +30,36 @@ public class FloatService extends Service {
         startForegroundNotification();
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         
+        imageView = new ImageView(this);
+        imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        
         try {
             Bitmap sheet = BitmapFactory.decodeStream(getAssets().open("spritesheet.png"));
             if (sheet != null) {
-                frameW = sheet.getWidth() / cols;
-                frameH = sheet.getHeight() / rows;
-                for (int r = 0; r < rows; r++) {
-                    for (int c = 0; c < cols; c++) {
-                        Bitmap frame = Bitmap.createBitmap(sheet, c * frameW, r * frameH, frameW, frameH);
-                        frames.add(frame);
-                    }
-                }
+                // Just show first frame
+                int fw = sheet.getWidth() / 8;
+                int fh = sheet.getHeight() / 9;
+                Bitmap first = Bitmap.createBitmap(sheet, 0, 0, fw, fh);
+                imageView.setImageBitmap(first);
                 sheet.recycle();
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         
-        surfaceView = new SurfaceView(this);
-        surfaceView.setZOrderOnTop(true);
-        surfaceView.getHolder().setFormat(PixelFormat.TRANSLUCENT);
-        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
-            @Override
-            public void surfaceCreated(SurfaceHolder holder) {
-                running = true;
-                renderThread = new Thread(new RenderLoop());
-                renderThread.start();
-                drawFrame();
+        imageView.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_UP) {
+                long dt = System.currentTimeMillis() - lastTap;
+                if (dt < 400) {
+                    showToast("喵喵喵~");
+                } else if (dt < 800) {
+                    showToast("嗷！");
+                } else {
+                    showToast("喵~");
+                }
+                lastTap = System.currentTimeMillis();
             }
-            @Override
-            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
-            @Override
-            public void surfaceDestroyed(SurfaceHolder holder) {
-                running = false;
-                try { if (renderThread != null) renderThread.join(500); } catch (Exception e) {}
-            }
-        });
-        
-        surfaceView.setOnTouchListener((v, event) -> {
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    initX = layoutParams.x;
-                    initY = layoutParams.y;
-                    initTouchX = event.getRawX();
-                    initTouchY = event.getRawY();
-                    touchStart = System.currentTimeMillis();
-                    hasMoved = false;
-                    return true;
-                case MotionEvent.ACTION_MOVE:
-                    float dx = event.getRawX() - initTouchX;
-                    float dy = event.getRawY() - initTouchY;
-                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasMoved = true;
-                    layoutParams.x = (int)(initX + dx);
-                    layoutParams.y = (int)(initY + dy);
-                    windowManager.updateViewLayout(surfaceView, layoutParams);
-                    return true;
-                case MotionEvent.ACTION_UP:
-                    long dt = System.currentTimeMillis() - touchStart;
-                    if (hasMoved) return true;
-                    if (dt < 300) {
-                        long since = System.currentTimeMillis() - lastTap;
-                        if (since < 400) { triggerAnim(6, 80, false); showToast("喵喵喵~"); }
-                        else if (since < 800) { triggerAnim(4, 100, false); showToast("嗚！"); }
-                        else { triggerAnim(2, 120, false); showToast("喵~"); }
-                        lastTap = System.currentTimeMillis();
-                    } else if (dt > 600) {
-                        triggerAnim(8, 100, false);
-                        showToast("呼噜噜...");
-                    }
-                    return true;
-            }
-            return false;
+            return true;
         });
         
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
@@ -128,64 +75,7 @@ public class FloatService extends Service {
         layoutParams.gravity = Gravity.TOP | Gravity.START;
         layoutParams.x = 100;
         layoutParams.y = 400;
-        windowManager.addView(surfaceView, layoutParams);
-    }
-    
-    class RenderLoop implements Runnable {
-        public void run() {
-            int col = 0;
-            long lastFrameTime = 0;
-            while (running) {
-                long now = System.currentTimeMillis();
-                if (now - lastFrameTime >= animSpeed) {
-                    if (animActive) {
-                        if (col >= cols) {
-                            if (animLoop) { col = 0; }
-                            else { animActive = false; triggerIdle(); }
-                        }
-                    }
-                    if (animActive && col < cols) {
-                        curFrameIdx = animRow * cols + col;
-                        col++;
-                    }
-                    drawFrame();
-                    lastFrameTime = now;
-                }
-                try { Thread.sleep(16); } catch (Exception e) {}
-            }
-        }
-    }
-    
-    private void drawFrame() {
-        SurfaceHolder holder = surfaceView.getHolder();
-        Canvas canvas = null;
-        try {
-            canvas = holder.lockCanvas();
-            if (canvas != null && curFrameIdx >= 0 && curFrameIdx < frames.size()) {
-                canvas.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
-                Bitmap frame = frames.get(curFrameIdx);
-                if (frame != null && !frame.isRecycled()) {
-                    Rect dst = new Rect(0, 0, surfaceView.getWidth(), surfaceView.getHeight());
-                    canvas.drawBitmap(frame, null, dst, null);
-                }
-            }
-        } finally {
-            if (canvas != null) holder.unlockCanvasAndPost(canvas);
-        }
-    }
-    
-    private synchronized void triggerAnim(int row, int speed, boolean loop) {
-        animRow = row;
-        animSpeed = speed;
-        animLoop = loop;
-        animActive = true;
-    }
-    
-    private synchronized void triggerIdle() {
-        animRow = 0;
-        animSpeed = 250;
-        animLoop = true;
-        animActive = true;
+        windowManager.addView(imageView, layoutParams);
     }
     
     private void showToast(String text) {
@@ -220,11 +110,7 @@ public class FloatService extends Service {
     
     @Override
     public void onDestroy() {
-        running = false;
-        try { if (renderThread != null) renderThread.join(500); } catch (Exception e) {}
-        if (windowManager != null && surfaceView != null) windowManager.removeView(surfaceView);
-        for (Bitmap b : frames) { if (b != null && !b.isRecycled()) b.recycle(); }
-        frames.clear();
+        if (windowManager != null && imageView != null) windowManager.removeView(imageView);
         super.onDestroy();
     }
 }
